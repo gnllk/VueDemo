@@ -113,6 +113,7 @@ CompileUtils = {
         }, data);
     },
     getComputedValue(expr, vue){
+        // get the computed value by expr
         let fn = this.getExprValue(expr, vue.$computed);
         return fn && typeof(fn) == 'function' ? fn.call(vue) : null;
     },
@@ -127,6 +128,7 @@ CompileUtils = {
         });
     },
     update:{
+        // {{user.name}}
         text:function(vue, node, textExpr){
             // update text expr {{user.name}} with expr value
             node.textContent = CompileUtils.compileTextExpr(textExpr, expr1=>{
@@ -153,6 +155,7 @@ CompileUtils = {
                 }
             });
         },
+        // v-html
         html:function(vue, node, expr){
             let textExpr = '{{' + expr + '}}';
             // update text expr {{user.name}} with expr value
@@ -167,6 +170,7 @@ CompileUtils = {
                 return CompileUtils.getExprValue(expr1, vue);
             });
         },
+        // v-model
         model: function(vue, node, expr){
             // new subscriber to watch property changed event
             let sub = new Subscriber(expr, newVal=>{
@@ -180,6 +184,7 @@ CompileUtils = {
                 CompileUtils.setExprValue(expr, vue.$data, node.value);
             });
         },
+        // v-on:click
         on: function(vue, node, expr, eventName){
             let fn = CompileUtils.getExprValue(expr, vue.$methods);
             node.addEventListener(eventName, e=>{
@@ -188,9 +193,32 @@ CompileUtils = {
                 }
             });
         },
+        // v-bind:title
         bind: function(vue, node, expr, attrName){
-            let val = CompileUtils.getExprValue(expr, vue.$data);
-            node.setAttribute(attrName, val);
+            this.__onComputedOrDataChanged(vue, node, expr, newVal=>{
+                node.setAttribute(attrName, newVal);
+            });
+        },
+        // v-if
+        if: function(vue, node, expr){
+            this.__onComputedOrDataChanged(vue, node, expr, newVal=>{
+                node.hidden = !newVal;
+            });
+        },
+        // internal watch property changed 
+        __onComputedOrDataChanged(vue, node, expr, onChanged){
+            let computedVal = CompileUtils.getComputedValue(expr, vue);
+            if(computedVal){
+                let sub = new Subscriber('*', newVal=>{
+                    onChanged(CompileUtils.getComputedValue(expr, vue));
+                });
+                vue.$publisher.addSub(sub);
+                onChanged(computedVal);
+            }else{
+                let sub = new Subscriber(expr, newVal=>onChanged(newVal));
+                vue.$publisher.addSub(sub);
+                onChanged(CompileUtils.getExprValue(expr, vue.$data));
+            }
         }
     }
 }

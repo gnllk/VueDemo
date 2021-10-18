@@ -26,7 +26,7 @@
                 <button v-on:click="changeName">Change Name</button>
                 <button v-on:click="accumulateAge">Age++</button>
             </div>
-            <div v-html="message"></div>
+            <div v-if="isEnableMessage" v-html="message"></div>
         </div>
     </body>
     
@@ -45,6 +45,7 @@
                     lastName: 'Smith',
                     age: 23
                 },
+                enableMessage: true,
                 message: '<h1>Hello world</h1>'
             },
             created: function(){
@@ -64,6 +65,11 @@
                 },
                 getUserInfo:function(){
                     return this.user.name + '.' + this.user.lastName + ', age: ' + this.user.age;
+                },
+                isEnableMessage:function(){
+                    // it will be shown only if enableMessage is true
+                    // and message contains 'Hello' string
+                    return this.enableMessage && this.message.includes('Hello');
                 }
             }
         }); 
