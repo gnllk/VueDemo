@@ -91,7 +91,7 @@ class Compiler{
     compileText(node){ 
         let textExpr = node.textContent;
         if(this.isTextExpr(textExpr)){
-             CompileUtils.update['text'](this.$vue, node, textExpr);
+            CompileUtils.update['text'](this.$vue, node, textExpr);
         }
     }
 }
@@ -112,13 +112,9 @@ CompileUtils = {
             return prev ? prev[curr] : null; 
         }, data);
     },
-    getExprValueOrComputed: function(expr, vue){
-        let val = this.getExprValue(expr, vue.$data);
-        if(!val){
-            let fn = this.getExprValue(expr, vue.$computed);
-            return fn && typeof(fn) == 'function' ? fn.call(vue) : fn;
-        }
-        return val;
+    getComputedValue(expr, vue){
+        let fn = this.getExprValue(expr, vue.$computed);
+        return fn && typeof(fn) == 'function' ? fn.call(vue) : null;
     },
     getExpr: function(exprWithBrace){
         // will return user.name from {{user.name}}
@@ -134,14 +130,27 @@ CompileUtils = {
         text:function(vue, node, textExpr){
             // update text expr {{user.name}} with expr value
             node.textContent = CompileUtils.compileTextExpr(textExpr, expr1=>{
-                // new subscriber to watch property changed event
-                let sub = new Subscriber(expr1, newVal=>{
-                    node.textContent = CompileUtils.compileTextExpr(textExpr, expr2=>{
-                        return CompileUtils.getExprValueOrComputed(expr2, vue);
+                let computedVal = CompileUtils.getComputedValue(expr1, vue);
+                if(computedVal){
+                    // new subscriber to watch all(*) property changed event, 
+                    // because it is a computed value
+                    let sub = new Subscriber('*', newVal=>{
+                        node.textContent = CompileUtils.compileTextExpr(textExpr, expr2=>{
+                            return CompileUtils.getComputedValue(expr2, vue);
+                        });
                     });
-                });
-                vue.$publisher.addSub(sub);
-                return CompileUtils.getExprValueOrComputed(expr1, vue);
+                    vue.$publisher.addSub(sub);
+                    return computedVal;
+                }else{
+                    // new subscriber to watch property expr1 user.name changed event
+                    let sub = new Subscriber(expr1, newVal=>{
+                        node.textContent = CompileUtils.compileTextExpr(textExpr, expr2=>{
+                            return CompileUtils.getExprValue(expr2, vue);
+                        });
+                    });
+                    vue.$publisher.addSub(sub);
+                    return CompileUtils.getExprValue(expr1, vue);
+                }
             });
         },
         html:function(vue, node, expr){
@@ -151,11 +160,11 @@ CompileUtils = {
                 // new subscriber to watch property changed event
                 let sub = new Subscriber(expr1, newVal=>{
                     node.innerHTML = CompileUtils.compileTextExpr(textExpr, expr2=>{
-                        return CompileUtils.getExprValueOrComputed(expr2, vue);
+                        return CompileUtils.getExprValue(expr2, vue);
                     });
                 });
                 vue.$publisher.addSub(sub);
-                return CompileUtils.getExprValueOrComputed(expr1, vue);
+                return CompileUtils.getExprValue(expr1, vue);
             });
         },
         model: function(vue, node, expr){
@@ -204,13 +213,10 @@ class Publisher{
         this.$vue = vue;
         this.__subs = {};
         new Observer(vue.$data, (topic, newVal)=>{
-            let subs = this.__subs[topic];
-            if(subs){
-                subs.forEach(sub=> sub.onUpdate(newVal));
-            }
-            let starSubs = this.__subs['*'];
-            if(starSubs){
-                starSubs.forEach(sub=> sub.onUpdate(newVal));
+            for(let key in this.__subs){
+                if(this.__isMatch(topic, key)){ 
+                    this.__subs[key].forEach(sub=>sub.onUpdate(newVal));
+                }
             }
         });
     }
@@ -218,10 +224,26 @@ class Publisher{
         if(!topic){
             topic = subscriber.getTopic();
         }
+        if(!topic){
+            throw 'Missing topic';
+        }
         if(!this.__subs[topic]){
             this.__subs[topic] = [];
         }
         this.__subs[topic].push(subscriber);
+    }
+    __isMatch(topic, patten){
+        if(topic == patten || patten == '*') return true; 
+        if(!patten.includes('*')) return false;
+        let [startStr, endStr] = patten.split('*');
+        if(startStr && endStr){
+            return topic.startsWith(startStr) && topic.endsWith(endStr);
+        }else if(startStr){
+            return topic.startsWith(startStr);
+        }else if(endStr){
+            topic.endsWith(endStr);
+        }
+        return false;
     }
 }
 

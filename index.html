@@ -20,7 +20,7 @@
                 <label>Name: {{user.name}}, Age: {{user.age}}</label>
             </div>
             <div>
-                <label>FullName: {{getFullName}}</label>
+                <label>FullName: {{getUserInfo}}</label>
             </div>
             <div>
                 <button v-on:click="changeName">Change Name</button>
@@ -61,6 +61,9 @@
             computed:{
                 getFullName:function(){
                     return this.user.name + '.' + this.user.lastName;
+                },
+                getUserInfo:function(){
+                    return this.user.name + '.' + this.user.lastName + ', age: ' + this.user.age;
                 }
             }
         }); 
